@@ -1,8 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "LifeComponent.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 #include "UnrealNetwork.h"
-#include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values for this component's properties
 ULifeComponent::ULifeComponent()
@@ -22,6 +23,7 @@ void ULifeComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 	DOREPLIFETIME(ULifeComponent, CurrentLife);
 	DOREPLIFETIME(ULifeComponent, MaxLife);
+	DOREPLIFETIME(ULifeComponent, NumInvincibilityHandled);
 }
 
 bool ULifeComponent::IsAlive() const
@@ -42,7 +44,10 @@ void ULifeComponent::SetLife(int32 NewLife)
 
 void ULifeComponent::ApplyDamages(int32 DamagesAmount)
 {
-	SetLife(CurrentLife - DamagesAmount);
+	if (!IsInvincible())
+	{
+		SetLife(CurrentLife - DamagesAmount);
+	}
 }
 
 void ULifeComponent::Heal(int32 HealAmount)
@@ -52,12 +57,63 @@ void ULifeComponent::Heal(int32 HealAmount)
 
 void ULifeComponent::OnRep_CurrentLife()
 {
-	UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("OnRep_CurrentLife : %d"), CurrentLife));
 	OnLifeValueChanged.Broadcast(this);
+}
+
+void ULifeComponent::OnRep_NumInvincibilityHandled()
+{
+	if (NumInvincibilityHandled <= 1)
+	{
+		OnInvincibilityModeChanged.Broadcast(this, NumInvincibilityHandled > 0);
+	}
 }
 
 float ULifeComponent::GetLifeRatio() const
 {
-	return ((float)CurrentLife / (float)MaxLife);
+	return ((float) CurrentLife / (float) MaxLife);
+}
+
+FInvincibilityHandle ULifeComponent::EnableInvincibility()
+{
+	FInvincibilityHandle newInvinciblityHandle;
+	SetNumInvincibilityHandled(NumInvincibilityHandled + 1);
+	return (newInvinciblityHandle);
+}
+
+void ULifeComponent::EnableTimedInvincibility(float Duration)
+{
+	SetNumInvincibilityHandled(NumInvincibilityHandled + 1);
+	
+	if (UWorld* world = GetWorld())
+	{
+		FTimerManager& timerManager = world->GetTimerManager();
+		FTimerHandle timerHandle;
+		timerManager.SetTimer(timerHandle, this, &ULifeComponent::HandleLifetimeElapsed, Duration);
+	}
+}
+
+void ULifeComponent::DisableInvincibility(FInvincibilityHandle& Handle)
+{
+	if (Handle.IsValid())
+	{
+		Handle.MakeInvalid();
+		SetNumInvincibilityHandled(NumInvincibilityHandled - 1);
+	}
+}
+
+bool ULifeComponent::IsInvincible() const
+{
+	return (NumInvincibilityHandled > 0);
+}
+
+void ULifeComponent::SetNumInvincibilityHandled(int32 InNumInvincibilityHandled)
+{
+	NumInvincibilityHandled = FMath::Clamp(InNumInvincibilityHandled, 0, 1);
+	OnRep_NumInvincibilityHandled();
+}
+
+void ULifeComponent::HandleLifetimeElapsed()
+{
+	SetNumInvincibilityHandled(NumInvincibilityHandled - 1);
 }
 
