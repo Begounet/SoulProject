@@ -1,2 +1,6 @@
 /dev/SoulProject/Intermediate
 /dev/SoulProject/Saved
+/dev/SoulProject/Binaries/Win64
+/dev/SoulProject/.vs/SoulProject/v14/*.suo
+/dev/SoulProject/*.opendb
+/dev/SoulProject/*.db
